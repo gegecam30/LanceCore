@@ -1,0 +1,191 @@
+# ==========================================
+#         LancerCore Configuration
+# ==========================================
+
+prefix: "&8[&bLancerCore&8] "
+
+# ------------------------------------------
+# Combat Mechanics
+# ------------------------------------------
+combat:
+  damage-multiplier: 1.5
+  mount-bonus-multiplier: 2.0
+  lunge-hunger-cost: 2
+  
+  # NEW: Bleeding Effect 
+  bleeding:
+    enabled: true
+    chance: 0.25         # 25% chance to trigger per hit
+    duration-seconds: 3  # How long it lasts
+    damage-per-second: 1.0 # 1.0 = half heart
+  
+  # NEW: Ghost Reach 
+  ghost-reach:
+    enabled: true
+    min-combo-required: 10
+    range: 7.0           # Max distance in blocks
+    damage: 6.0          # Flat damage dealt
+
+# ========================================== #
+#           GRAPPLING TRIDENT SYSTEM         #
+# ========================================== #
+grappling-trident:
+  # Enable or disable the entire mechanic
+  enabled: true
+  
+  # Does it require a Lead in the offhand to work?
+  require-lead-in-offhand: true
+  
+  # Seconds to wait between each use (Cooldown)
+  cooldown-seconds: 5
+  
+  # Seconds of fall damage immunity when using the hook
+  fall-immunity-seconds: 8
+  
+  # Speed at which the player is pulled (Default: 1.8)
+  pull-speed-multiplier: 1.8
+  
+  # Maximum distance in blocks scaled by Unbreaking level
+  ranges:
+    base: 15
+    unbreaking-1: 25
+    unbreaking-2: 35
+    unbreaking-3: 50
+    
+  # Texts and messages (Supports color codes with &)
+  messages:
+    out-of-range: "&c&lTarget too far! &8(Max: {max}m)"
+    on-cooldown: "&e&lGrapple on cooldown! &8({time}s)"
+    anchored: "&a&lAnchored! &7Right-click to pull."
+    
+# ------------------------------------------
+# Combo System
+# ------------------------------------------
+combo:
+  enabled: true
+  reset-time-seconds: 5
+  
+  sounds:
+    enabled: true
+    hit-sound: "BLOCK_NOTE_BLOCK_PLING"
+    base-pitch: 1.0
+    pitch-increase: 0.1
+    
+  finisher:
+    enabled: true
+    sound: "ENTITY_WITHER_SPAWN"
+    min-combo-trigger: 5
+    
+    # NEW: Console Commands Rewards 
+    rewards:
+      enabled: true
+      # Commands executed by console. Use %player% for the killer's name.
+      commands:
+        - "cmi pay %player% 50"
+        - "minecraft:tellraw %player% [\"\",{\"text\":\"[LancerCore] \",\"color\":\"gray\"},{\"text\":\"Legendary Kill! Reward sent.\",\"color\":\"gold\"}]"
+
+# ------------------------------------------
+# Visual Effects
+# ------------------------------------------
+visuals:
+  action-bar: true
+  combo-message: "&6&lLANCE COMBO &e&lx{combo}"
+  
+  # NEW: Lightning on Combo 
+  lightning:
+    enabled: true
+    trigger-interval: 5 # Strikes every 5th hit (5, 10, 15...)
+  
+  particles:
+    enabled: true
+    style: "HELIX"
+    # Default particle if player hasn't selected one
+    default-type: "SOUL_FIRE_FLAME" 
+    min-combo-trigger: 3
+    radius: 1.2
+# ------------------------------------------
+# Off-hand Catalysts (New System)
+# ------------------------------------------
+catalysts:
+  enabled: true
+
+  # --- TIER 1: BASIC DEBUFFS ---
+  snowball:
+    enabled: true
+    consume-item: true
+    freeze-ticks: 140
+    slowness-duration: 3
+    slowness-amplifier: 1
+    
+  slimeball:
+    enabled: true
+    consume-item: true
+    slowness-duration: 2
+    slowness-amplifier: 3
+
+  gunpowder:
+    enabled: true
+    consume-item: true
+    knockback-strength: 1.5
+    extra-damage: 2.0
+
+  spider-eye: # POISON
+    enabled: true
+    consume-item: true
+    duration: 4
+    amplifier: 0 # Level 1
+
+  rotten-flesh: # EXTREME HUNGER
+    enabled: true
+    consume-item: true
+    duration: 5
+    amplifier: 4 # Drains hunger bar quickly
+
+  feather: # LEVITATION
+    enabled: true
+    consume-item: true
+    duration: 1  # Short but annoying
+    amplifier: 9 # Rises very fast
+
+  amethyst-shard: # DIZZINESS (NAUSEA)
+    enabled: true
+    consume-item: true
+    duration: 6
+    amplifier: 0
+
+  # --- TIER 2: SPECIAL EFFECTS ---
+  echo-shard: # DARKNESS
+    enabled: true
+    consume-item: true
+    duration: 5
+    amplifier: 0
+  
+  pufferfish: # PARALYSIS (Slowness + Negative Jump Boost)
+    enabled: true
+    consume-item: true
+    duration: 2 # 1.5s rounded to ticks
+    
+  ghast-tear: # VAMPIRISM (Regeneration for the attacker)
+    enabled: true
+    consume-item: true
+    duration: 3
+    amplifier: 1 # Regen II
+
+  chorus-fruit: # CHAOS TELEPORT
+    enabled: true
+    consume-item: true
+    range: 5.0 # Teleport radius
+
+  # --- TIER 3: WORLD INTERACTION (DANGEROUS) ---
+  cobweb: # SPIDER TRAP
+    enabled: true
+    consume-item: true
+    remove-after-seconds: 3 # Important to prevent griefing
+
+  wither-skeleton-skull: # GUARDIAN
+    enabled: true
+    consume-item: true
+    lifespan-seconds: 6 # Skeleton lifespan
+
+storage:
+  type: "SQLITE"

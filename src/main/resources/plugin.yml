@@ -1,0 +1,70 @@
+name: LancerCore
+version: 4.0
+main: dev.gege.lancercore.LancerCore
+api-version: 1.21
+authors: [_gengis]
+#depend: [PlaceholderAPI]
+softdepend: [PlaceholderAPI]
+
+commands:
+  lancercore:
+    description: Main command for LancerCore
+    aliases: [lc]
+    permission: lancercore.admin
+    usage: /lc <reload|particles>
+
+permissions:
+  # Permiso de Administrador
+  lancercore.admin:
+    description: Allows reloading the plugin and full access
+    default: op
+    children:
+      lancercore.particles.*: true
+
+  # Permiso "Padre" para todas las partículas
+  lancercore.particles.*:
+    description: Grants access to all particle styles
+    default: op
+    children:
+      lancercore.particles.all: true
+      lancercore.particles.flame: true
+      lancercore.particles.soul_fire_flame: true
+      lancercore.particles.dust: true
+      lancercore.particles.totem_of_undying: true
+      lancercore.particles.crit_magic: true
+      lancercore.particles.spell_witch: true
+      lancercore.particles.sonic_boom: true
+
+  # Permiso de "Bypass" (usado en el código)
+  lancercore.particles.all:
+    description: Bypass check for all particles
+    default: op
+
+  # Permisos Individuales
+  lancercore.particles.flame:
+    description: Access to Flame particle
+    default: op
+  
+  lancercore.particles.soul_fire_flame:
+    description: Access to Soul Fire particle
+    default: op
+
+  lancercore.particles.dust:
+    description: Access to Redstone/Dust particle
+    default: op
+
+  lancercore.particles.totem_of_undying:
+    description: Access to Totem particle
+    default: op
+
+  lancercore.particles.crit_magic:
+    description: Access to Crit Magic particle
+    default: op
+
+  lancercore.particles.spell_witch:
+    description: Access to Dark Magic (Witch) particle
+    default: op
+
+  lancercore.particles.sonic_boom:
+    description: Access to Sonic Boom particle
+    default: op
