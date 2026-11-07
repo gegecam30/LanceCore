@@ -12,14 +12,14 @@ combat:
   mount-bonus-multiplier: 2.0
   lunge-hunger-cost: 2
   
-  # NEW: Bleeding Effect 
+  # Bleeding Effect 
   bleeding:
     enabled: true
     chance: 0.25         # 25% chance to trigger per hit
     duration-seconds: 3  # How long it lasts
     damage-per-second: 1.0 # 1.0 = half heart
   
-  # NEW: Ghost Reach 
+  # Ghost Reach 
   ghost-reach:
     enabled: true
     min-combo-required: 10
@@ -30,29 +30,18 @@ combat:
 #           GRAPPLING TRIDENT SYSTEM         #
 # ========================================== #
 grappling-trident:
-  # Enable or disable the entire mechanic
   enabled: true
-  
-  # Does it require a Lead in the offhand to work?
   require-lead-in-offhand: true
-  
-  # Seconds to wait between each use (Cooldown)
   cooldown-seconds: 5
-  
-  # Seconds of fall damage immunity when using the hook
   fall-immunity-seconds: 8
-  
-  # Speed at which the player is pulled (Default: 1.8)
   pull-speed-multiplier: 1.8
   
-  # Maximum distance in blocks scaled by Unbreaking level
   ranges:
     base: 15
     unbreaking-1: 25
     unbreaking-2: 35
     unbreaking-3: 50
     
-  # Texts and messages (Supports color codes with &)
   messages:
     out-of-range: "&c&lTarget too far! &8(Max: {max}m)"
     on-cooldown: "&e&lGrapple on cooldown! &8({time}s)"
@@ -76,10 +65,8 @@ combo:
     sound: "ENTITY_WITHER_SPAWN"
     min-combo-trigger: 5
     
-    # NEW: Console Commands Rewards 
     rewards:
       enabled: true
-      # Commands executed by console. Use %player% for the killer's name.
       commands:
         - "cmi pay %player% 50"
         - "minecraft:tellraw %player% [\"\",{\"text\":\"[LancerCore] \",\"color\":\"gray\"},{\"text\":\"Legendary Kill! Reward sent.\",\"color\":\"gold\"}]"
@@ -91,25 +78,25 @@ visuals:
   action-bar: true
   combo-message: "&6&lLANCE COMBO &e&lx{combo}"
   
-  # NEW: Lightning on Combo 
   lightning:
     enabled: true
-    trigger-interval: 5 # Strikes every 5th hit (5, 10, 15...)
+    trigger-interval: 5
   
   particles:
     enabled: true
     style: "HELIX"
-    # Default particle if player hasn't selected one
     default-type: "SOUL_FIRE_FLAME" 
     min-combo-trigger: 3
     radius: 1.2
+
 # ------------------------------------------
-# Off-hand Catalysts (New System)
+# Off-hand Catalysts System
 # ------------------------------------------
 catalysts:
   enabled: true
 
-  # --- TIER 1: BASIC DEBUFFS ---
+  # ==================== ORIGINAL CATALYSTS ====================
+
   snowball:
     enabled: true
     consume-item: true
@@ -129,63 +116,116 @@ catalysts:
     knockback-strength: 1.5
     extra-damage: 2.0
 
-  spider-eye: # POISON
+  spider-eye:
     enabled: true
     consume-item: true
     duration: 4
-    amplifier: 0 # Level 1
+    amplifier: 0
 
-  rotten-flesh: # EXTREME HUNGER
+  rotten-flesh:
     enabled: true
     consume-item: true
     duration: 5
-    amplifier: 4 # Drains hunger bar quickly
+    amplifier: 4
 
-  feather: # LEVITATION
+  feather:
     enabled: true
     consume-item: true
-    duration: 1  # Short but annoying
-    amplifier: 9 # Rises very fast
+    duration: 1
+    amplifier: 9
 
-  amethyst-shard: # DIZZINESS (NAUSEA)
+  amethyst-shard:
     enabled: true
     consume-item: true
     duration: 6
     amplifier: 0
 
-  # --- TIER 2: SPECIAL EFFECTS ---
-  echo-shard: # DARKNESS
+  echo-shard:
     enabled: true
     consume-item: true
     duration: 5
     amplifier: 0
   
-  pufferfish: # PARALYSIS (Slowness + Negative Jump Boost)
+  pufferfish:
     enabled: true
     consume-item: true
-    duration: 2 # 1.5s rounded to ticks
+    duration: 2
     
-  ghast-tear: # VAMPIRISM (Regeneration for the attacker)
+  ghast-tear:
     enabled: true
     consume-item: true
     duration: 3
-    amplifier: 1 # Regen II
+    amplifier: 1
 
-  chorus-fruit: # CHAOS TELEPORT
+  chorus-fruit:
     enabled: true
     consume-item: true
-    range: 5.0 # Teleport radius
+    range: 5.0
 
-  # --- TIER 3: WORLD INTERACTION (DANGEROUS) ---
-  cobweb: # SPIDER TRAP
+  cobweb:
     enabled: true
     consume-item: true
-    remove-after-seconds: 3 # Important to prevent griefing
+    remove-after-seconds: 3
 
-  wither-skeleton-skull: # GUARDIAN
+  wither-skeleton-skull:
     enabled: true
     consume-item: true
-    lifespan-seconds: 6 # Skeleton lifespan
+    lifespan-seconds: 6
+
+  # ==================== NEW CATALYSTS ====================
+
+  # Name Tag → Marked: Reveals target globally with red name
+  name-tag:
+    enabled: true
+    consume-item: true
+    duration-seconds: 15  # How long the name stays visible
+
+  # Magma Cream → Lava Trail: Target leaves fire trail while moving
+  magma-cream:
+    enabled: true
+    consume-item: true
+    duration-seconds: 4  # How long they leave fire behind
+
+  # Nether Star → Gravity Well: Pulls all nearby enemies toward target
+  nether-star:
+    enabled: true
+    consume-item: true
+    radius: 8.0           # Area of effect
+    duration-seconds: 2   # How long the pull lasts
+
+  # Totem of Undying → False Death: Fake your death with invisibility + invulnerability
+  totem:
+    enabled: true
+    consume-item: false   # Totems are rare, maybe don't consume
+    duration-seconds: 2   # Invisibility + invulnerability time
+    cooldown-seconds: 60  # Long cooldown to prevent spam
+
+  # Heart of the Sea → Tidal Pull: Yanks target toward you
+  heart-of-the-sea:
+    enabled: true
+    consume-item: true
+    pull-strength: 2.0    # Velocity multiplier
+
+  # ====================  DAMAGE REFLECTION ====================
+
+  # Prismarine Shard → Mirror Shield: Reflects next attack from target back to them
+  prismarine-shard:
+    enabled: true
+    consume-item: true
+    duration-seconds: 5   # How long the shield lasts
+
+  # Prismarine Crystals → Refraction: Redistributes % of damage received back to target
+  prismarine-crystals:
+    enabled: true
+    consume-item: true
+    duration-seconds: 4
+    reflect-percentage: 0.4  # 40% of damage received is reflected
+
+  # Nether Wart → Blood Curse: Target damages themselves when they hit you
+  nether-wart:
+    enabled: true
+    consume-item: true
+    duration-seconds: 4   # How long the curse lasts
 
 storage:
   type: "SQLITE"

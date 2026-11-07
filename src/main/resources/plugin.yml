@@ -1,5 +1,5 @@
 name: LancerCore
-version: 4.0
+version: 4.1
 main: dev.gege.lancercore.LancerCore
 api-version: 1.21
 authors: [_gengis]

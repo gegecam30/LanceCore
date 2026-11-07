@@ -1,7 +1,7 @@
 package dev.gege.lancercore.listeners;
 
 import dev.gege.lancercore.LancerCore;
-import dev.gege.lancercore.managers.MinionManager; // <--- ASEGURATE DE TENER ESTE IMPORT
+import dev.gege.lancercore.managers.MinionManager;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.entity.*;
@@ -19,21 +19,28 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 public class SpearCombatListener implements Listener {
 
     private final LancerCore plugin;
-    private final MinionManager minionManager; // <--- ESTO FALTABA (Declaración)
+    private final MinionManager minionManager;
     private final Map<UUID, Integer> bleedingTasks = new HashMap<>();
     private final Map<UUID, Long> witherCooldowns = new HashMap<>();
+    
+    // TANDA 1
+    private final Map<UUID, Long> totemCooldowns = new HashMap<>();
+    private final Set<UUID> invulnerablePlayers = new HashSet<>();
+    
+    // TANDA 2 — Daño Reflejado
+    private final Map<UUID, MirrorShieldData> mirrorShields = new HashMap<>();
+    private final Map<UUID, RefractionData> refractionShields = new HashMap<>();
+    private final Map<UUID, UUID> bloodCurses = new HashMap<>(); // Víctima -> Atacante
+    private final Set<UUID> reflectingDamage = new HashSet<>(); // Anti-loop flag
 
     public SpearCombatListener(LancerCore plugin) {
         this.plugin = plugin;
-        this.minionManager = new MinionManager(plugin); // <--- ESTO FALTABA (Inicialización)
+        this.minionManager = new MinionManager(plugin);
     }
 
     // 1. GHOST REACH
@@ -106,9 +113,10 @@ public class SpearCombatListener implements Listener {
     private void handleCatalysts(Player player, LivingEntity target, EntityDamageByEntityEvent event) {
         ItemStack offHand = player.getInventory().getItemInOffHand();
         Material mat = offHand.getType();
-        String path = "catalysts."; // Shortcut
+        String path = "catalysts.";
 
-        // 1. SNOWBALL (Freeze)
+        // ==================== CATALYSTS ORIGINALES ====================
+        
         if (mat == Material.SNOWBALL && plugin.getConfig().getBoolean(path + "snowball.enabled")) {
             target.setFreezeTicks(plugin.getConfig().getInt(path + "snowball.freeze-ticks", 140));
             target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, plugin.getConfig().getInt(path + "snowball.slowness-duration", 3) * 20, plugin.getConfig().getInt(path + "snowball.slowness-amplifier", 1)));
@@ -117,7 +125,6 @@ public class SpearCombatListener implements Listener {
             if (plugin.getConfig().getBoolean(path + "snowball.consume-item")) consumeItem(player, offHand);
         }
         
-        // 2. SLIMEBALL (Sticky)
         else if (mat == Material.SLIME_BALL && plugin.getConfig().getBoolean(path + "slimeball.enabled")) {
             target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, plugin.getConfig().getInt(path + "slimeball.slowness-duration", 2) * 20, plugin.getConfig().getInt(path + "slimeball.slowness-amplifier", 3)));
             target.getWorld().spawnParticle(Particle.ITEM_SLIME, target.getEyeLocation(), 15, 0.4, 0.4, 0.4, 0.1);
@@ -125,7 +132,6 @@ public class SpearCombatListener implements Listener {
             if (plugin.getConfig().getBoolean(path + "slimeball.consume-item")) consumeItem(player, offHand);
         }
 
-        // 3. GUNPOWDER (Explosion)
         else if (mat == Material.GUNPOWDER && plugin.getConfig().getBoolean(path + "gunpowder.enabled")) {
             event.setDamage(event.getDamage() + plugin.getConfig().getDouble(path + "gunpowder.extra-damage", 2.0));
             Vector direction = player.getLocation().getDirection().normalize().multiply(plugin.getConfig().getDouble(path + "gunpowder.knockback-strength", 1.5)).setY(0.4);
@@ -135,7 +141,6 @@ public class SpearCombatListener implements Listener {
             if (plugin.getConfig().getBoolean(path + "gunpowder.consume-item")) consumeItem(player, offHand);
         }
 
-        // 4. SPIDER EYE (Poison)
         else if (mat == Material.SPIDER_EYE && plugin.getConfig().getBoolean(path + "spider-eye.enabled")) {
             target.addPotionEffect(new PotionEffect(PotionEffectType.POISON, plugin.getConfig().getInt(path + "spider-eye.duration", 4) * 20, plugin.getConfig().getInt(path + "spider-eye.amplifier", 0)));
             target.getWorld().spawnParticle(Particle.ENTITY_EFFECT, target.getEyeLocation(), 10, 0.3, 0.5, 0.3, 1, Color.GREEN);
@@ -143,28 +148,24 @@ public class SpearCombatListener implements Listener {
             if (plugin.getConfig().getBoolean(path + "spider-eye.consume-item")) consumeItem(player, offHand);
         }
 
-        // 5. AMETHYST SHARD (Nausea/Confusion)
         else if (mat == Material.AMETHYST_SHARD && plugin.getConfig().getBoolean(path + "amethyst-shard.enabled")) {
             target.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, plugin.getConfig().getInt(path + "amethyst-shard.duration", 6) * 20, plugin.getConfig().getInt(path + "amethyst-shard.amplifier", 0)));
             player.playSound(target.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 2f, 0.5f);
             if (plugin.getConfig().getBoolean(path + "amethyst-shard.consume-item")) consumeItem(player, offHand);
         }
 
-        // 6. ECHO SHARD (Darkness)
         else if (mat == Material.ECHO_SHARD && plugin.getConfig().getBoolean(path + "echo-shard.enabled")) {
             target.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, plugin.getConfig().getInt(path + "echo-shard.duration", 5) * 20, 0));
             player.playSound(target.getLocation(), Sound.ENTITY_WARDEN_HEARTBEAT, 1f, 0.5f);
             if (plugin.getConfig().getBoolean(path + "echo-shard.consume-item")) consumeItem(player, offHand);
         }
 
-        // 7. FEATHER (Levitation)
         else if (mat == Material.FEATHER && plugin.getConfig().getBoolean(path + "feather.enabled")) {
             target.addPotionEffect(new PotionEffect(PotionEffectType.LEVITATION, plugin.getConfig().getInt(path + "feather.duration", 1) * 20, plugin.getConfig().getInt(path + "feather.amplifier", 9)));
             player.playSound(target.getLocation(), Sound.ENTITY_BAT_TAKEOFF, 1f, 1.5f);
             if (plugin.getConfig().getBoolean(path + "feather.consume-item")) consumeItem(player, offHand);
         }
 
-        // 8. GHAST TEAR (Regeneration for Attacker)
         else if (mat == Material.GHAST_TEAR && plugin.getConfig().getBoolean(path + "ghast-tear.enabled")) {
             player.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, plugin.getConfig().getInt(path + "ghast-tear.duration", 3) * 20, plugin.getConfig().getInt(path + "ghast-tear.amplifier", 1)));
             player.getWorld().spawnParticle(Particle.HEART, player.getEyeLocation(), 5, 0.3, 0.3, 0.3);
@@ -172,7 +173,6 @@ public class SpearCombatListener implements Listener {
             if (plugin.getConfig().getBoolean(path + "ghast-tear.consume-item")) consumeItem(player, offHand);
         }
 
-        // 9. CHORUS FRUIT (Random Teleport)
         else if (mat == Material.CHORUS_FRUIT && plugin.getConfig().getBoolean(path + "chorus-fruit.enabled")) {
             double range = plugin.getConfig().getDouble(path + "chorus-fruit.range", 5.0);
             double randomX = (Math.random() * range * 2) - range;
@@ -186,7 +186,6 @@ public class SpearCombatListener implements Listener {
             if (plugin.getConfig().getBoolean(path + "chorus-fruit.consume-item")) consumeItem(player, offHand);
         }
 
-        // 10. PUFFERFISH (Paralysis)
         else if (mat == Material.PUFFERFISH && plugin.getConfig().getBoolean(path + "pufferfish.enabled")) {
             int duration = plugin.getConfig().getInt(path + "pufferfish.duration", 2) * 20;
             target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, duration, 6)); 
@@ -195,7 +194,6 @@ public class SpearCombatListener implements Listener {
             if (plugin.getConfig().getBoolean(path + "pufferfish.consume-item")) consumeItem(player, offHand);
         }
 
-        // 11. ROTTEN FLESH (Hunger)
         else if (mat == Material.ROTTEN_FLESH && plugin.getConfig().getBoolean(path + "rotten-flesh.enabled")) {
              if (target instanceof Player) {
                  ((Player) target).addPotionEffect(new PotionEffect(PotionEffectType.HUNGER, plugin.getConfig().getInt(path + "rotten-flesh.duration", 5) * 20, plugin.getConfig().getInt(path + "rotten-flesh.amplifier", 4)));
@@ -204,7 +202,6 @@ public class SpearCombatListener implements Listener {
              }
         }
 
-        // 12. COBWEB (Temporary Trap)
         else if (mat == Material.COBWEB && plugin.getConfig().getBoolean(path + "cobweb.enabled")) {
             Block block = target.getLocation().getBlock();
             if (block.getType() == Material.AIR || block.getType() == Material.GRASS_BLOCK || block.getType() == Material.TALL_GRASS) {
@@ -221,27 +218,285 @@ public class SpearCombatListener implements Listener {
             }
         }
 
-        // 13. WITHER SKULL (Minion con Cooldown)
         else if (mat == Material.WITHER_SKELETON_SKULL && plugin.getConfig().getBoolean(path + "wither-skeleton-skull.enabled")) {
-            
-            // --- NUEVO: LÓGICA DE COOLDOWN ---
             long now = System.currentTimeMillis();
-            // Si ya usó la habilidad recientemente...
             if (witherCooldowns.containsKey(player.getUniqueId())) {
                 long lastUse = witherCooldowns.get(player.getUniqueId());
-                // 2000 milisegundos = 2 segundos de espera
-                if (now - lastUse < 2000) { 
-                    return; // ¡ALTO! No spawnees nada, todavía está cargando.
+                if (now - lastUse < 2000) return;
+            }
+            witherCooldowns.put(player.getUniqueId(), now);
+            minionManager.spawnWitherMinion(player, target);
+            if (plugin.getConfig().getBoolean(path + "wither-skeleton-skull.consume-item")) consumeItem(player, offHand);
+        }
+
+        // ==================== TANDA 1 ====================
+        
+        else if (mat == Material.NAME_TAG && plugin.getConfig().getBoolean(path + "name-tag.enabled")) {
+            String originalName = target.getCustomName();
+            target.setCustomName(ChatColor.DARK_RED + "⚠ " + (target instanceof Player ? ((Player) target).getName() : target.getType().name()) + " ⚠");
+            target.setCustomNameVisible(true);
+            
+            int duration = plugin.getConfig().getInt(path + "name-tag.duration-seconds", 15);
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    if (target.isValid()) {
+                        target.setCustomName(originalName);
+                        target.setCustomNameVisible(false);
+                    }
+                }
+            }.runTaskLater(plugin, duration * 20L);
+            
+            player.playSound(target.getLocation(), Sound.BLOCK_ANVIL_LAND, 0.5f, 2.0f);
+            target.getWorld().spawnParticle(Particle.ANGRY_VILLAGER, target.getEyeLocation(), 8, 0.5, 0.5, 0.5);
+            if (plugin.getConfig().getBoolean(path + "name-tag.consume-item")) consumeItem(player, offHand);
+        }
+
+        else if (mat == Material.MAGMA_CREAM && plugin.getConfig().getBoolean(path + "magma-cream.enabled")) {
+            int duration = plugin.getConfig().getInt(path + "magma-cream.duration-seconds", 4);
+            new BukkitRunnable() {
+                int ticks = 0;
+                @Override
+                public void run() {
+                    if (!target.isValid() || target.isDead() || ticks >= duration) {
+                        this.cancel();
+                        return;
+                    }
+                    
+                    Block block = target.getLocation().getBlock();
+                    if (block.getType() == Material.AIR) {
+                        block.setType(Material.FIRE);
+                        new BukkitRunnable() {
+                            @Override
+                            public void run() {
+                                if (block.getType() == Material.FIRE) block.setType(Material.AIR);
+                            }
+                        }.runTaskLater(plugin, 20L);
+                    }
+                    
+                    target.getWorld().spawnParticle(Particle.FLAME, target.getLocation(), 3, 0.2, 0, 0.2, 0.02);
+                    ticks++;
+                }
+            }.runTaskTimer(plugin, 0L, 20L);
+            
+            player.playSound(target.getLocation(), Sound.ITEM_FIRECHARGE_USE, 1f, 0.8f);
+            if (plugin.getConfig().getBoolean(path + "magma-cream.consume-item")) consumeItem(player, offHand);
+        }
+
+        else if (mat == Material.NETHER_STAR && plugin.getConfig().getBoolean(path + "nether-star.enabled")) {
+            double radius = plugin.getConfig().getDouble(path + "nether-star.radius", 8.0);
+            int duration = plugin.getConfig().getInt(path + "nether-star.duration-seconds", 2);
+            
+            new BukkitRunnable() {
+                int ticks = 0;
+                @Override
+                public void run() {
+                    if (!target.isValid() || target.isDead() || ticks >= duration * 4) {
+                        this.cancel();
+                        return;
+                    }
+                    
+                    for (Entity nearby : target.getNearbyEntities(radius, radius, radius)) {
+                        if (nearby instanceof LivingEntity && nearby != player && nearby != target) {
+                            Vector direction = target.getLocation().toVector().subtract(nearby.getLocation().toVector()).normalize();
+                            nearby.setVelocity(direction.multiply(0.5));
+                        }
+                    }
+                    
+                    target.getWorld().spawnParticle(Particle.PORTAL, target.getLocation(), 20, radius, 1, radius, 0.1);
+                    ticks++;
+                }
+            }.runTaskTimer(plugin, 0L, 5L);
+            
+            player.playSound(target.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1f, 0.5f);
+            if (plugin.getConfig().getBoolean(path + "nether-star.consume-item")) consumeItem(player, offHand);
+        }
+
+        else if (mat == Material.TOTEM_OF_UNDYING && plugin.getConfig().getBoolean(path + "totem.enabled")) {
+            long now = System.currentTimeMillis();
+            long cooldownMs = plugin.getConfig().getInt(path + "totem.cooldown-seconds", 60) * 1000L;
+            
+            if (totemCooldowns.containsKey(player.getUniqueId())) {
+                long timeLeft = (totemCooldowns.get(player.getUniqueId()) + cooldownMs - now) / 1000;
+                if (timeLeft > 0) {
+                    player.sendMessage(ChatColor.RED + "Totem on cooldown! " + timeLeft + "s remaining");
+                    return;
                 }
             }
-            // Actualizamos el tiempo de último uso
-            witherCooldowns.put(player.getUniqueId(), now);
-            // ----------------------------------
+            
+            totemCooldowns.put(player.getUniqueId(), now);
+            invulnerablePlayers.add(player.getUniqueId());
+            
+            player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, 30, 0, false, false));
+            player.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, player.getLocation(), 30, 0.5, 1, 0.5, 0.1);
+            player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1f, 1f);
+            
+            int duration = plugin.getConfig().getInt(path + "totem.duration-seconds", 2);
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    invulnerablePlayers.remove(player.getUniqueId());
+                    player.removePotionEffect(PotionEffectType.INVISIBILITY);
+                }
+            }.runTaskLater(plugin, duration * 20L);
+            
+            if (plugin.getConfig().getBoolean(path + "totem.consume-item")) consumeItem(player, offHand);
+        }
 
-            // Llamamos al Manager (Tu código limpio)
-            minionManager.spawnWitherMinion(player, target);
+        else if (mat == Material.HEART_OF_THE_SEA && plugin.getConfig().getBoolean(path + "heart-of-the-sea.enabled")) {
+            Vector direction = player.getLocation().toVector().subtract(target.getLocation().toVector()).normalize();
+            double strength = plugin.getConfig().getDouble(path + "heart-of-the-sea.pull-strength", 2.0);
+            target.setVelocity(direction.multiply(strength).setY(0.5));
+            
+            target.getWorld().spawnParticle(Particle.DRIPPING_WATER, target.getEyeLocation(), 30, 0.5, 0.5, 0.5, 0.1);
+            player.playSound(target.getLocation(), Sound.ITEM_BUCKET_EMPTY, 1f, 0.5f);
+            
+            if (plugin.getConfig().getBoolean(path + "heart-of-the-sea.consume-item")) consumeItem(player, offHand);
+        }
 
-            if (plugin.getConfig().getBoolean(path + "wither-skeleton-skull.consume-item")) consumeItem(player, offHand);
+        // ==================== TANDA 2 — DAÑO REFLEJADO ====================
+
+        // 19. PRISMARINE SHARD → Mirror Shield (Refleja próximo ataque recibido)
+        else if (mat == Material.PRISMARINE_SHARD && plugin.getConfig().getBoolean(path + "prismarine-shard.enabled")) {
+            int duration = plugin.getConfig().getInt(path + "prismarine-shard.duration-seconds", 5);
+            mirrorShields.put(player.getUniqueId(), new MirrorShieldData(target.getUniqueId(), System.currentTimeMillis() + (duration * 1000L)));
+            
+            player.sendMessage(ChatColor.AQUA + "✦ Mirror Shield active!");
+            player.playSound(player.getLocation(), Sound.BLOCK_GLASS_BREAK, 1f, 2.0f);
+            player.getWorld().spawnParticle(Particle.ENCHANTED_HIT, player.getEyeLocation(), 15, 0.5, 0.5, 0.5);
+            
+            if (plugin.getConfig().getBoolean(path + "prismarine-shard.consume-item")) consumeItem(player, offHand);
+        }
+
+        // 20. PRISMARINE CRYSTALS → Refraction (Redistribuye % del daño recibido)
+        else if (mat == Material.PRISMARINE_CRYSTALS && plugin.getConfig().getBoolean(path + "prismarine-crystals.enabled")) {
+            int duration = plugin.getConfig().getInt(path + "prismarine-crystals.duration-seconds", 4);
+            double percent = plugin.getConfig().getDouble(path + "prismarine-crystals.reflect-percentage", 0.4);
+            
+            refractionShields.put(player.getUniqueId(), new RefractionData(target.getUniqueId(), percent, System.currentTimeMillis() + (duration * 1000L)));
+            
+            player.sendMessage(ChatColor.LIGHT_PURPLE + "◈ Refraction Shield active! (" + (int)(percent * 100) + "% reflected)");
+            player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 1f, 1.5f);
+            player.getWorld().spawnParticle(Particle.END_ROD, player.getEyeLocation(), 20, 0.3, 0.5, 0.3);
+            
+            if (plugin.getConfig().getBoolean(path + "prismarine-crystals.consume-item")) consumeItem(player, offHand);
+        }
+
+        // 21. NETHER WART → Blood Curse (El objetivo se daña al golpearte)
+        else if (mat == Material.NETHER_WART && plugin.getConfig().getBoolean(path + "nether-wart.enabled")) {
+            int duration = plugin.getConfig().getInt(path + "nether-wart.duration-seconds", 4);
+            bloodCurses.put(target.getUniqueId(), player.getUniqueId());
+            
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    bloodCurses.remove(target.getUniqueId());
+                }
+            }.runTaskLater(plugin, duration * 20L);
+            
+            target.getWorld().spawnParticle(Particle.ENTITY_EFFECT, target.getEyeLocation(), 20, 0.3, 0.5, 0.3, 1, Color.MAROON);
+            player.playSound(target.getLocation(), Sound.ENTITY_EVOKER_PREPARE_ATTACK, 1f, 0.8f);
+            target.getWorld().playSound(target.getLocation(), Sound.ENTITY_PLAYER_ATTACK_CRIT, 1f, 0.5f);
+            
+            if (plugin.getConfig().getBoolean(path + "nether-wart.consume-item")) consumeItem(player, offHand);
+        }
+    }
+
+    // ==================== TANDA 2 — DAMAGE REFLECTION HANDLERS ====================
+
+    @EventHandler
+    public void onReflectiveDamage(EntityDamageByEntityEvent event) {
+        // Prevenir loops infinitos
+        if (reflectingDamage.contains(event.getEntity().getUniqueId())) return;
+
+        if (event.getEntity() instanceof Player) {
+            Player victim = (Player) event.getEntity();
+            UUID victimId = victim.getUniqueId();
+
+            // MIRROR SHIELD — Refleja COMPLETAMENTE el próximo golpe
+            if (mirrorShields.containsKey(victimId)) {
+                MirrorShieldData shield = mirrorShields.get(victimId);
+                
+                if (System.currentTimeMillis() > shield.expiryTime) {
+                    mirrorShields.remove(victimId);
+                    return;
+                }
+
+                Entity damagerEntity = event.getDamager();
+                if (damagerEntity.getUniqueId().equals(shield.targetId)) {
+                    event.setCancelled(true);
+                    
+                    reflectingDamage.add(damagerEntity.getUniqueId());
+                    if (damagerEntity instanceof LivingEntity) {
+                        ((LivingEntity) damagerEntity).damage(event.getDamage(), victim);
+                    }
+                    reflectingDamage.remove(damagerEntity.getUniqueId());
+                    
+                    victim.getWorld().spawnParticle(Particle.ENCHANTED_HIT, victim.getEyeLocation(), 15, 0.5, 0.5, 0.5);
+                    victim.playSound(victim.getLocation(), Sound.ITEM_SHIELD_BLOCK, 1f, 2.0f);
+                    
+                    mirrorShields.remove(victimId);
+                }
+            }
+
+            // REFRACTION SHIELD — Redistribuye un %
+            if (refractionShields.containsKey(victimId)) {
+                RefractionData shield = refractionShields.get(victimId);
+                
+                if (System.currentTimeMillis() > shield.expiryTime) {
+                    refractionShields.remove(victimId);
+                    return;
+                }
+
+                Entity damagerEntity = event.getDamager();
+                if (damagerEntity.getUniqueId().equals(shield.targetId)) {
+                    double reflectedDamage = event.getDamage() * shield.reflectPercent;
+                    event.setDamage(event.getDamage() * (1 - shield.reflectPercent));
+                    
+                    reflectingDamage.add(damagerEntity.getUniqueId());
+                    if (damagerEntity instanceof LivingEntity) {
+                        ((LivingEntity) damagerEntity).damage(reflectedDamage, victim);
+                    }
+                    reflectingDamage.remove(damagerEntity.getUniqueId());
+                    
+                    victim.getWorld().spawnParticle(Particle.ENCHANTED_HIT, victim.getEyeLocation(), 8, 0.3, 0.3, 0.3);
+                }
+            }
+        }
+
+        // BLOOD CURSE — El atacante se daña cuando golpea a la víctima cursada
+        if (event.getEntity() instanceof LivingEntity && event.getDamager() instanceof Player) {
+            UUID victimId = event.getEntity().getUniqueId();
+            
+            if (bloodCurses.containsKey(victimId)) {
+                Player cursedVictimOwner = Bukkit.getPlayer(bloodCurses.get(victimId));
+                Player attacker = (Player) event.getDamager();
+                
+                if (cursedVictimOwner != null && attacker.getUniqueId().equals(cursedVictimOwner.getUniqueId())) {
+                    return; // El dueño de la maldición no se daña a sí mismo
+                }
+                
+                double reflectedDamage = event.getDamage();
+                
+                reflectingDamage.add(attacker.getUniqueId());
+                attacker.damage(reflectedDamage);
+                reflectingDamage.remove(attacker.getUniqueId());
+                
+                attacker.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, attacker.getEyeLocation(), 5, 0.2, 0.2, 0.2);
+                attacker.playSound(attacker.getLocation(), Sound.ENTITY_PLAYER_HURT, 1f, 0.8f);
+            }
+        }
+    }
+
+    // ==================== TOTEM INVULNERABILITY ====================
+    @EventHandler
+    public void onInvulnerableDamage(EntityDamageByEntityEvent event) {
+        if (event.getEntity() instanceof Player) {
+            Player victim = (Player) event.getEntity();
+            if (invulnerablePlayers.contains(victim.getUniqueId())) {
+                event.setCancelled(true);
+                victim.getWorld().spawnParticle(Particle.ENCHANTED_HIT, victim.getEyeLocation(), 5, 0.3, 0.3, 0.3);
+            }
         }
     }
 
@@ -250,7 +505,6 @@ public class SpearCombatListener implements Listener {
         item.setAmount(item.getAmount() - 1);
     }
     
-    // --- (Bleeding Task) ---
     private void applyBleeding(LivingEntity target) {
         UUID uuid = target.getUniqueId();
         if (bleedingTasks.containsKey(uuid)) Bukkit.getScheduler().cancelTask(bleedingTasks.get(uuid));
@@ -319,33 +573,47 @@ public class SpearCombatListener implements Listener {
     private boolean isSpear(ItemStack item) {
         return item != null && !item.getType().isAir() && item.getType().name().contains("SPEAR");
     }
-    // --- NUEVO: SEGURIDAD DEL MINION ---
     
-    // 1. Evitar que el Minion ataque a su dueño (IA Fix)
     @EventHandler
     public void onMinionTarget(org.bukkit.event.entity.EntityTargetLivingEntityEvent event) {
-        // Si la entidad es un Wither Skeleton y quiere atacar a un Jugador...
         if (event.getEntity() instanceof WitherSkeleton && event.getTarget() instanceof Player) {
             WitherSkeleton minion = (WitherSkeleton) event.getEntity();
             Player target = (Player) event.getTarget();
-
-            // Verificamos si es NUESTRO minion (por el nombre)
             if (minion.getCustomName() != null && minion.getCustomName().contains(target.getName())) {
-                event.setCancelled(true); // ¡Quieto! Ese es tu papá/mamá.
+                event.setCancelled(true);
             }
         }
     }
 
-    // 2. Evitar que TÚ mates a tu Minion por error (Fuego Amigo / Sweeping Edge)
     @EventHandler
     public void onPlayerDamageMinion(EntityDamageByEntityEvent event) {
         if (event.getEntity() instanceof WitherSkeleton && event.getDamager() instanceof Player) {
             WitherSkeleton minion = (WitherSkeleton) event.getEntity();
             Player attacker = (Player) event.getDamager();
-
             if (minion.getCustomName() != null && minion.getCustomName().contains(attacker.getName())) {
-                event.setCancelled(true); // No lastimes a tu propio súbdito
+                event.setCancelled(true);
             }
+        }
+    }
+
+    // === DATA CLASSES ===
+    private static class MirrorShieldData {
+        UUID targetId;
+        long expiryTime;
+        MirrorShieldData(UUID targetId, long expiryTime) {
+            this.targetId = targetId;
+            this.expiryTime = expiryTime;
+        }
+    }
+
+    private static class RefractionData {
+        UUID targetId;
+        double reflectPercent;
+        long expiryTime;
+        RefractionData(UUID targetId, double reflectPercent, long expiryTime) {
+            this.targetId = targetId;
+            this.reflectPercent = reflectPercent;
+            this.expiryTime = expiryTime;
         }
     }
 }
